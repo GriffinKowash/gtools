@@ -154,7 +154,7 @@ class Workflows:
         
     
     @staticmethod
-    def plot_shielding_statistics_from_file(se_path, title=None, ylim=None):
+    def plot_shielding_statistics_from_file(se_path, title=None, ylim=None, xlim=None):
         #takes in filepath and generates plot of min, max, and mean shielding effectiveness
         freq, se_min, se_mean, se_max = np.loadtxt(se_path).T
     
@@ -162,13 +162,17 @@ class Workflows:
         plt.fill_between(freq, se_min, se_max, color=(0.5, 0.5, 0.5, 0.5))
         plt.plot(freq, se_mean, linestyle='--', color='C0')
         
-        plt.xlim(1e7, 5e10)
         plt.xscale('log')
         
         if ylim == None:
             plt.ylim(15, 150)
         else:
             plt.ylim(ylim[0], ylim[1])
+            
+        if xlim == None:
+            plt.xlim(1e7, 5e10)
+        else:
+            plt.xlim(xlim[0], xlim[1])
         
         if title != None:
             plt.suptitle(title)

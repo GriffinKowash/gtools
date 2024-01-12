@@ -280,7 +280,13 @@ def load_distributed_probe(path_and_name, last_index='probe', precision='single'
 
     time, data, timestep = [], [], []
 
+    total_lines = len(lines)
+    
+    
     for i, line in enumerate(lines):
+        if i % (int(total_lines / 100)) == 0:
+            print(f'{round(i / total_lines * 100)}% complete.')
+        
         line_split = line.split()
         
         try:
