@@ -346,3 +346,35 @@ def convert_distributed_probe(path_and_name, fname=None, precision='single'):
         
     fmt = '%.7E' if precision == 'single' else '%.15E'
     np.savetxt(save_path_and_name, array, fmt=fmt)
+    
+    
+def pad_array_to_length(x, size, val=0):
+    """Pads a 1D array with entries of "val" to match size.
+    
+    Parameters
+    ----------
+    x : np.ndarray
+        Array to pad (current only accepts 1D)
+    size : int
+        Desired size of padded array
+    val : float (optional)
+        Value to pad with (defaults to zero)
+
+    Returns
+    -------
+    np.ndarray
+        Padded array
+    """
+    
+    # Handle exceptions
+    # TODO: improve to support arbitrary x shape
+    if x.ndim > 1:
+        raise ValueError(f'pad_array_to_length currently only supports 1D arrays ({x.ndim}D array provided).')
+    
+    # Create padded array
+    # TODO: match dtype of val and/or original array
+    padding = val * np.ones(size - x.size)
+    x_new = np.concatenate([x, padding])
+    
+    return x_new
+

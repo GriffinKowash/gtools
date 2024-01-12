@@ -74,6 +74,12 @@ class Processing:
         data = np.concatenate(data_sets, axis=2)
         
         return t, data
+    
+    @staticmethod
+    def load_source(source_name_and_path):
+        #loads source time series
+        t, source = np.loadtxt(source_name_and_path)
+        return t, source
 
     @staticmethod
     def load_source_fft(source_filepath):
@@ -131,7 +137,10 @@ class Workflows:
         freq, e_fft = Processing.calc_fft(t, data)
         e_fft_mag = Processing.calc_magnitude(e_fft)
         
-        _, source_fft = Processing.load_source_fft(source_path)
+        #_, source_fft = Processing.load_source_fft(source_path)
+        _, esource = Processing.load_source(source_path)
+        esource = gtools.pad_array_to_length(esource, t.size, 0)
+        _, source_fft = Processing.calc_fft(t, esource)
                 
         se = Processing.calc_shielding(e_fft_mag, source_fft)
         se_min, se_mean, se_max = Processing.calc_statistics(se)
