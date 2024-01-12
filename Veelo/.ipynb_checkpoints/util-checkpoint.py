@@ -78,7 +78,7 @@ class Processing:
     @staticmethod
     def load_source(source_name_and_path):
         #loads source time series
-        t, source = np.loadtxt(source_name_and_path)
+        t, source = np.loadtxt(source_name_and_path).T
         return t, source
 
     @staticmethod
