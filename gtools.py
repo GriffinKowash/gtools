@@ -64,7 +64,7 @@ def shielding(t, x, xref):
     Returns
     -------
     tuple : ndarray, ndarray
-        A tuple of the form (frequency, FFT)
+        A tuple of the form (frequency, shielding)
     """
     
     # Handle errors and warnings
@@ -284,8 +284,8 @@ def load_distributed_probe(path_and_name, last_index='probe', precision='single'
     
     
     for i, line in enumerate(lines):
-        if i % (int(total_lines / 100)) == 0:
-            print(f'{round(i / total_lines * 100)}% complete.')
+        #if i % (int(total_lines / 100)) == 0:
+        #    print(f'{round(i / total_lines * 100)}% complete.')
         
         line_split = line.split()
         
@@ -355,12 +355,12 @@ def convert_distributed_probe(path_and_name, fname=None, precision='single'):
     
     
 def pad_array_to_length(x, size, val=0):
-    """Pads a 1D array with entries of "val" to match size.
+    """Pads an array with entries of "val" along 0th axis to match size.
     
     Parameters
     ----------
     x : np.ndarray
-        Array to pad (current only accepts 1D)
+        Array to pad (currently only supports 1D)
     size : int
         Desired size of padded array
     val : float (optional)
@@ -373,14 +373,65 @@ def pad_array_to_length(x, size, val=0):
     """
     
     # Handle exceptions
-    # TODO: improve to support arbitrary x shape
+    # TODO: support arbitrary padding dimensions
     if x.ndim > 1:
         raise ValueError(f'pad_array_to_length currently only supports 1D arrays ({x.ndim}D array provided).')
     
     # Create padded array
-    # TODO: match dtype of val and/or original array
+    # TODO: match dtype of val and/or original array    
     padding = val * np.ones(size - x.size)
     x_new = np.concatenate([x, padding])
     
     return x_new
 
+
+def pad_data_to_time(t, x, endtime, val=0):
+    """Wrapper for pad_array_to_length that pads both time steps and data to the desired end time.
+    
+    Parameters
+    ----------
+    t : np.ndarray
+        time steps
+    x : np.ndarray
+        data to pad (currently only supports 1D)
+    endtime : float
+        Desired end time of padded data
+    val : float (optional)
+        Value to pad with (defaults to zero)
+
+    Returns
+    -------
+    tuple
+        Tuple (t_padded, x_padded) of padded data.
+    """
+    
+    dt = t[1] - t[0]
+    t_padded = np.arange(t[0], endtime + dt, dt)
+    x_padded = pad_array_to_length(x, t.size, val=val)
+    
+
+def resample(t, x, dt):
+    """Resamples time series data using linear interpolation to a specified  time step.
+    
+    Typical use cases relate to frequency domain operations between data sets with different
+    time steps, including non-uniform time series produced by magnetostatic scaling.
+    
+    Parameters
+    ----------
+    t : np.ndarray
+        original time steps
+    x : np.ndarray
+        data to resample
+    dt : float
+        Time step for resampling
+        
+    Returns
+    -------
+    tuple
+        Tuple (t_resamp, x_resamp) of the resampled data
+    """
+    
+    t_resamp = np.arange(t[0], t[-1] + dt, dt)
+    x_resamp = np.interp(t_resamp, t, x)
+    
+    return t_resamp, x_resamp

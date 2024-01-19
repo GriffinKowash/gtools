@@ -9,6 +9,7 @@ Created on Mon Nov 20 14:35:13 2023
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import warnings
 
 from gtools import gtools
     
@@ -125,14 +126,33 @@ class Processing:
     
 class Workflows:
     @staticmethod
-    def generate_shielding_statistics_from_results(probe_path, source_path):
+    def generate_shielding_statistics_from_results(probe_path, source_path, cutoff=None, pad=None):
         #takes in file paths, calculate shielding effectivess, and saves in probe_path directory
         if type(probe_path) == list or type(probe_path) == tuple:
             #stacks results from multiple probes
             t, data = Processing.load_probes(probe_path)
+            save_path = '\\'.join(probe_path[0].split('\\')[:-1] + ['se_stats.dat'])
+            
         else:
             #processes single probe file
             t, data = Processing.load_probe(probe_path)
+            save_path = '\\'.join(probe_path.split('\\')[:-1] + ['se_stats.dat'])
+            
+        if cutoff != None:
+            warnings.warn(f'User has requested cutoff time of {cutoff} seconds, which may affect results.')
+            index = np.abs(t - cutoff).argmin()
+            t = t[:index]
+            data = data[:index, ...]
+        
+        if pad != None:
+            warnings.warn(f'User has requested zero-padding out to {pad} seconds, which may affect results.')
+            dt = t[1] - t[0]
+            t_pad = np.arange(t[0], pad + dt, dt)
+            pad_size = t_pad.size - t.size
+            data_pad = np.pad(data, ((0, pad_size), (0, 0), (0, 0)))
+            t = t_pad
+            data = data_pad
+                
         
         freq, e_fft = Processing.calc_fft(t, data)
         e_fft_mag = Processing.calc_magnitude(e_fft)
@@ -145,10 +165,9 @@ class Workflows:
         se = Processing.calc_shielding(e_fft_mag, source_fft)
         se_min, se_mean, se_max = Processing.calc_statistics(se)
         
-        path = '\\'.join(source_path.split('\\')[:-1] + ['se_stats.dat'])
-        np.savetxt(path, np.transpose([freq, se_min, se_mean, se_max]))
+        np.savetxt(save_path, np.transpose([freq, se_min, se_mean, se_max]))
         
-        print('Shielding statistics saved to ', path, '\n')
+        print('Shielding statistics saved to ', save_path, '\n')
         
         return freq, se_min, se_mean, se_max
         
@@ -184,7 +203,7 @@ class Workflows:
         
         
     @staticmethod
-    def plot_shielding_statistics_from_multiple_runs(se_paths, title=None):
+    def plot_shielding_statistics_from_multiple_runs(se_paths, title=None, xlim=None, ylim=None, first=False):
         se_mins = []
         se_means = []
         se_maxs = []
@@ -203,11 +222,26 @@ class Workflows:
         se_mean_all = np.mean(se_means, axis=0)
         se_max_all = np.max(se_maxs, axis=0)
         
-        plt.fill_between(freq, se_min_all, se_max_all, color=(0.5, 0.5, 0.5, 0.5), label='Range')
+        # optionally trim first frequency from FFT results
+        if first:
+            start = 0
+        else:
+            start = 1
+        
+        plt.fill_between(freq[start:], se_min_all[start:], se_max_all[start:], color=(0.5, 0.5, 0.5, 0.5), label='Range')
         #plt.fill_between(freq, se_min_all, se_max_all, color=(.30, .45, .69, .5))    #(.87, .52, .32, .5))
-        plt.plot(freq, se_mean_all, linestyle='--', color='C0', label='Mean')
-        plt.xlim(1e7, 5e10)
-        plt.ylim(0, 150)
+        plt.plot(freq[start:], se_mean_all[start:], linestyle='--', color='C0', label='Mean')
+        
+        if xlim == None:
+            plt.xlim(1e7, 5e10)
+        else:
+            plt.xlim(xlim[0], xlim[1])
+            
+        if ylim == None:
+            plt.ylim(0, 150)
+        else:
+            plt.ylim(ylim[0], ylim[1])
+            
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Shielding effectiveness (dB)')
         
@@ -216,7 +250,7 @@ class Workflows:
         else:
             plt.suptitle(title)
             
-        plt.legend()
+        plt.legend(loc='upper left')
         plt.xscale('log')
         plt.show()
     
@@ -416,22 +450,22 @@ class Workflows:
         #fig.suptitle('Bare conductor - current (time series)')
         #fig.show()
         
-        Workflows.plot_with_range(t, i_c1_min, i_c1_mean, i_c1_max, xlabel='Time (s)', ylabel='Current (A)', title='Bare conductor - Isc (time series)', ylim=(-0.05, 0.05))
-        Workflows.plot_with_range(t, i_c2_min, i_c2_mean, i_c2_max, xlabel='Time (s)', ylabel='Current (A)', title='TSP conductor 1 - Isc (time series)', ylim=(-0.05, 0.05))
-        Workflows.plot_with_range(t, i_c3_min, i_c3_mean, i_c3_max, xlabel='Time (s)', ylabel='Current (A)', title='TSP conductor 2 - Isc (time series)', ylim=(-0.05, 0.05))
-        Workflows.plot_with_range(t, i_shield_min, i_shield_mean, i_shield_max, xlabel='Time (s)', ylabel='Current (A)', title='TSP shield - Isc (time series)', ylim=(-0.05, 0.05))
+        Workflows.plot_with_range(t, i_c1_min, i_c1_mean, i_c1_max, xlabel='Time (s)', ylabel='Current (A)', title='Bare conductor - Isc (time series)', ylim=(-1e-5, 1e-5))
+        Workflows.plot_with_range(t, i_c2_min, i_c2_mean, i_c2_max, xlabel='Time (s)', ylabel='Current (A)', title='Shielded conductor - Isc (time series)', ylim=(-1e-5, 1e-5))
+        Workflows.plot_with_range(t, i_c3_min, i_c3_mean, i_c3_max, xlabel='Time (s)', ylabel='Current (A)', title='Shielded conductor 2 - Isc (time series)', ylim=(-1e-5, 1e-5))
+        Workflows.plot_with_range(t, i_shield_min, i_shield_mean, i_shield_max, xlabel='Time (s)', ylabel='Current (A)', title='Shield - Isc (time series)', ylim=(-1e-5, 1e-5))
 
-        Workflows.plot_with_range(f, i_c1_fft_min, i_c1_fft_mean, i_c1_fft_max, xlabel='Frequency (Hz)', ylabel='Current (A)', title='Bare conductor - Isc (FFT)', xscale='log', yscale='log', xlim=(1e7, 5e10), ylim=(1e-8, 2e-2))
-        Workflows.plot_with_range(f, i_c2_fft_min, i_c2_fft_mean, i_c2_fft_max, xlabel='Frequency (Hz)', ylabel='Current (A)', title='TSP conductor 1 - Isc (FFT)', xscale='log', yscale='log', xlim=(1e7, 5e10), ylim=(1e-8, 2e-2))
-        Workflows.plot_with_range(f, i_c3_fft_min, i_c3_fft_mean, i_c3_fft_max, xlabel='Frequency (Hz)', ylabel='Current (A)', title='TSP conductor 2 - Isc (FFT)', xscale='log', yscale='log', xlim=(1e7, 5e10), ylim=(1e-8, 2e-2))
-        Workflows.plot_with_range(f, i_shield_fft_min, i_shield_fft_mean, i_shield_fft_max, xlabel='Frequency (Hz)', ylabel='Current (A)', title='TSP shield - Isc (FFT)', xscale='log', yscale='log', xlim=(1e7, 5e10), ylim=(1e-8, 2e-2))
+        Workflows.plot_with_range(f, i_c1_fft_min, i_c1_fft_mean, i_c1_fft_max, xlabel='Frequency (Hz)', ylabel='Current (A)', title='Bare conductor - Isc (FFT)', xscale='log', yscale='log', xlim=(1e6, 1e10), ylim=(1e-11, 1e-5))
+        Workflows.plot_with_range(f, i_c2_fft_min, i_c2_fft_mean, i_c2_fft_max, xlabel='Frequency (Hz)', ylabel='Current (A)', title='Shielded conductor - Isc (FFT)', xscale='log', yscale='log', xlim=(1e6, 1e10), ylim=(1e-11, 1e-5))
+        Workflows.plot_with_range(f, i_c3_fft_min, i_c3_fft_mean, i_c3_fft_max, xlabel='Frequency (Hz)', ylabel='Current (A)', title='Shielded conductor 2 - Isc (FFT)', xscale='log', yscale='log', xlim=(1e6, 1e10), ylim=(1e-11, 1e-5))
+        Workflows.plot_with_range(f, i_shield_fft_min, i_shield_fft_mean, i_shield_fft_max, xlabel='Frequency (Hz)', ylabel='Current (A)', title='Shield - Isc (FFT)', xscale='log', yscale='log', xlim=(1e6, 1e10), ylim=(1e-11, 1e-5))
 
-        Workflows.plot_with_range(t, v_c1_min, v_c1_mean, v_c1_max, xlabel='Time (s)', ylabel='Voltage (V)', title='Bare conductor - Voc (time series)', ylim=(-3.2, 3.2))
-        Workflows.plot_with_range(t, v_c2_min, v_c2_mean, v_c2_max, xlabel='Time (s)', ylabel='Voltage (V)', title='TSP conductor 1 - Voc (time series)', ylim=(-3.2, 3.2))
-        Workflows.plot_with_range(t, v_c3_min, v_c3_mean, v_c3_max, xlabel='Time (s)', ylabel='Voltage (V)', title='TSP conductor 2 - Voc (time series)', ylim=(-3.2, 3.2))
-        Workflows.plot_with_range(t, v_shield_min, v_shield_mean, v_shield_max, xlabel='Time (s)', ylabel='Voltage (V)', title='TSP shield - Voc (time series)', ylim=(-3.2, 3.2))
+        Workflows.plot_with_range(t, v_c1_min, v_c1_mean, v_c1_max, xlabel='Time (s)', ylabel='Voltage (V)', title='Bare conductor - Voc (time series)', ylim=(-2e-4, 2e-4))
+        Workflows.plot_with_range(t, v_c2_min, v_c2_mean, v_c2_max, xlabel='Time (s)', ylabel='Voltage (V)', title='Shielded conductor - Voc (time series)', ylim=(-2e-4, 2e-4))
+        Workflows.plot_with_range(t, v_c3_min, v_c3_mean, v_c3_max, xlabel='Time (s)', ylabel='Voltage (V)', title='Shielded conductor 2 - Voc (time series)', ylim=(-2e-4, 2e-4))
+        Workflows.plot_with_range(t, v_shield_min, v_shield_mean, v_shield_max, xlabel='Time (s)', ylabel='Voltage (V)', title='Shield - Voc (time series)', ylim=(-2e-4, 2e-4))
 
-        Workflows.plot_with_range(f, v_c1_fft_min, v_c1_fft_mean, v_c1_fft_max, xlabel='Frequency (Hz)', ylabel='Voltage (V)', title='Bare conductor - Voc (FFT)', xscale='log', yscale='log', xlim=(1e7, 5e10), ylim=(1e-7, 2e0))
-        Workflows.plot_with_range(f, v_c2_fft_min, v_c2_fft_mean, v_c2_fft_max, xlabel='Frequency (Hz)', ylabel='Voltage (V)', title='TSP conductor 1 - Voc (FFT)', xscale='log', yscale='log', xlim=(1e7, 5e10), ylim=(1e-7, 2e0))
-        Workflows.plot_with_range(f, v_c3_fft_min, v_c3_fft_mean, v_c3_fft_max, xlabel='Frequency (Hz)', ylabel='Voltage (V)', title='TSP conductor 2 - Voc (FFT)', xscale='log', yscale='log', xlim=(1e7, 5e10), ylim=(1e-7, 2e0))
-        Workflows.plot_with_range(f, v_shield_fft_min, v_shield_fft_mean, v_shield_fft_max, xlabel='Frequency (Hz)', ylabel='Voltage (V)', title='TSP shield - Voc (FFT)', xscale='log', yscale='log', xlim=(1e7, 5e10), ylim=(1e-7, 2e0))
+        Workflows.plot_with_range(f, v_c1_fft_min, v_c1_fft_mean, v_c1_fft_max, xlabel='Frequency (Hz)', ylabel='Voltage (V)', title='Bare conductor - Voc (FFT)', xscale='log', yscale='log', xlim=(1e6, 1e10), ylim=(1e-10, 1e-4))
+        Workflows.plot_with_range(f, v_c2_fft_min, v_c2_fft_mean, v_c2_fft_max, xlabel='Frequency (Hz)', ylabel='Voltage (V)', title='Shielded conductor - Voc (FFT)', xscale='log', yscale='log', xlim=(1e6, 1e10), ylim=(1e-10, 1e-4))
+        Workflows.plot_with_range(f, v_c3_fft_min, v_c3_fft_mean, v_c3_fft_max, xlabel='Frequency (Hz)', ylabel='Voltage (V)', title='Shielded conductor 2 - Voc (FFT)', xscale='log', yscale='log', xlim=(1e6, 1e10), ylim=(1e-10, 1e-4))
+        Workflows.plot_with_range(f, v_shield_fft_min, v_shield_fft_mean, v_shield_fft_max, xlabel='Frequency (Hz)', ylabel='Voltage (V)', title='Shield - Voc (FFT)', xscale='log', yscale='log', xlim=(1e6, 1e10), ylim=(1e-10, 1e-4))
